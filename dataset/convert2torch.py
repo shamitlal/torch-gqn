@@ -6,7 +6,9 @@ import gzip
 from multiprocessing import Process
 
 import tensorflow as tf
-
+import ipdb
+st = ipdb.set_trace
+import os
 DatasetInfo = collections.namedtuple(
     'DatasetInfo',
     ['basepath', 'train_size', 'test_size', 'frame_size', 'sequence_size']
@@ -41,8 +43,8 @@ _DATASETS = dict(
 
     rooms_ring_camera=DatasetInfo(
         basepath='rooms_ring_camera',
-        train_size=2160,
-        test_size=240,
+        train_size=1,
+        test_size=1,
         frame_size=64,
         sequence_size=10),
 
@@ -126,21 +128,22 @@ def encapsulate(frames, cameras):
 
 def convert_raw_to_numpy(dataset_info, raw_data, path, jpeg=False):
     feature_map = {
-        'frames': tf.FixedLenFeature(
+        'frames': tf.io.FixedLenFeature(
             shape=dataset_info.sequence_size, dtype=tf.string),
-        'cameras': tf.FixedLenFeature(
+        'cameras': tf.io.FixedLenFeature(
             shape=[dataset_info.sequence_size * 5],
             dtype=tf.float32)
     }
-    example = tf.parse_single_example(raw_data, feature_map)
+    example = tf.io.parse_single_example(raw_data, feature_map)
     frames = preprocess_frames(dataset_info, example, jpeg)
     cameras = preprocess_cameras(dataset_info, example, jpeg)
-    with tf.train.SingularMonitoredSession() as sess:
+    with tf.compat.v1.train.SingularMonitoredSession() as sess:
         frames = sess.run(frames)
         cameras = sess.run(cameras)
     scene = encapsulate(frames, cameras)
     with gzip.open(path, 'wb') as f:
         torch.save(scene, f)
+        print("Saved datapoint in path {}", path)
 
 
 def show_frame(frames, scene, views):
@@ -165,36 +168,43 @@ if __name__ == '__main__':
     torch_dataset_path_train = f'{torch_dataset_path}/train'
     torch_dataset_path_test = f'{torch_dataset_path}/test'
 
-    os.mkdir(torch_dataset_path)
-    os.mkdir(torch_dataset_path_train)
-    os.mkdir(torch_dataset_path_test)
+    if not os.path.isdir(torch_dataset_path):
+        os.mkdir(torch_dataset_path)
+
+    if not os.path.isdir(torch_dataset_path_train):
+        os.mkdir(torch_dataset_path_train)
+    
+    if not os.path.isdir(torch_dataset_path_test):
+        os.mkdir(torch_dataset_path_test)
 
     ## train
     file_names = _get_dataset_files(dataset_info, 'train', '.')
 
     tot = 0
     for file in file_names:
-        engine = tf.python_io.tf_record_iterator(file)
+        # engine = tf.python_io.tf_record_iterator(file)
+        engine = tf.compat.v1.python_io.tf_record_iterator(file)
         for i, raw_data in enumerate(engine):
             path = os.path.join(torch_dataset_path_train, f'{tot+i}.pt.gz')
             print(f' [-] converting scene {file}-{i} into {path}')
             p = Process(target=convert_raw_to_numpy, args=(dataset_info, raw_data, path, True))
+            # convert_raw_to_numpy(dataset_info, raw_data, path, True)
             p.start();p.join() 
         tot += i
 
     print(f' [-] {tot} scenes in the train dataset')
 
-    ## test
-    file_names = _get_dataset_files(dataset_info, 'test', '.')
+    # ## test
+    # file_names = _get_dataset_files(dataset_info, 'test', '.')
 
-    tot = 0
-    for file in file_names:
-        engine = tf.python_io.tf_record_iterator(file)
-        for i, raw_data in enumerate(engine):
-            path = os.path.join(torch_dataset_path_test, f'{tot+i}.pt.gz')
-            print(f' [-] converting scene {file}-{i} into {path}')
-            p = Process(target=convert_raw_to_numpy, args=(dataset_info, raw_data, path, True))
-            p.start();p.join()
-        tot += i
+    # tot = 0
+    # for file in file_names:
+    #     engine = tf.compat.v1.python_io.tf_record_iterator(file)
+    #     for i, raw_data in enumerate(engine):
+    #         path = os.path.join(torch_dataset_path_test, f'{tot+i}.pt.gz')
+    #         print(f' [-] converting scene {file}-{i} into {path}')
+    #         p = Process(target=convert_raw_to_numpy, args=(dataset_info, raw_data, path, True))
+    #         p.start();p.join()
+    #     tot += i
 
-    print(f' [-] {tot} scenes in the test dataset')
+    # print(f' [-] {tot} scenes in the test dataset')

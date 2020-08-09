@@ -11,17 +11,18 @@ from torchvision.utils import make_grid, save_image
 from gqn_dataset import GQNDataset, Scene, transform_viewpoint, sample_batch
 from scheduler import AnnealingStepLR
 from model import GQN
-
+import ipdb 
+st = ipdb.set_trace
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Generative Query Network Implementation')
     parser.add_argument('--gradient_steps', type=int, default=2*10**6, help='number of gradient steps to run (default: 2 million)')
     parser.add_argument('--batch_size', type=int, default=36, help='size of batch (default: 36)')
     parser.add_argument('--dataset', type=str, default='Shepard-Metzler', help='dataset (dafault: Shepard-Mtzler)')
     parser.add_argument('--train_data_dir', type=str, help='location of training data', \
-                        default="/workspace/dataset/shepard_metzler_7_parts-torch/train")
+                        default="/projects/katefgroup/datasets/gqn-dataset/rooms_ring_camera/train")
     parser.add_argument('--test_data_dir', type=str, help='location of test data', \
-                        default="/workspace/dataset/shepard_metzler_7_parts-torch/test")
-    parser.add_argument('--root_log_dir', type=str, help='root location of log', default='/workspace/logs')
+                        default="/projects/katefgroup/datasets/gqn-dataset/rooms_ring_camera/test")
+    parser.add_argument('--root_log_dir', type=str, help='root location of log', default='/home/shamitl/projects/torch-gqn/logs')
     parser.add_argument('--log_dir', type=str, help='log directory (default: GQN)', default='GQN')
     parser.add_argument('--log_interval', type=int, help='interval number of steps for logging', default=100)
     parser.add_argument('--save_interval', type=int, help='interval number of steps for saveing models', default=10000)
@@ -53,7 +54,9 @@ if __name__ == '__main__':
     log_interval_num = args.log_interval
     save_interval_num = args.save_interval
     log_dir = os.path.join(args.root_log_dir, args.log_dir)
-    os.mkdir(log_dir)
+    # st()
+    if not os.path.isdir(log_dir):
+        os.mkdir(log_dir)
     os.mkdir(os.path.join(log_dir, 'models'))
     os.mkdir(os.path.join(log_dir,'runs'))
 
