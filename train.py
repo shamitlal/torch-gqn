@@ -8,11 +8,15 @@ import torch
 from torch import nn
 from torch.utils.data import DataLoader
 from torchvision.utils import make_grid, save_image
-from gqn_dataset import GQNDataset, Scene, transform_viewpoint, sample_batch
+from gqn_dataset import GQNDataset, Scene, transform_viewpoint, sample_batch, GQNDataset_pdisco
 from scheduler import AnnealingStepLR
 from model import GQN
 import ipdb 
 st = ipdb.set_trace
+'''
+Command for CLEVR:
+python train.py --pdisco_exp --run_name run1 --train_data_dir /projects/katefgroup/datasets/clevr_vqa/raw/npys/multi_obj_480_a --test_data_dir /projects/katefgroup/datasets/clevr_vqa/raw/npys/multi_obj_480_a 
+'''
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Generative Query Network Implementation')
     parser.add_argument('--gradient_steps', type=int, default=2*10**6, help='number of gradient steps to run (default: 2 million)')
@@ -35,6 +39,8 @@ if __name__ == '__main__':
                         help='whether to share the weights of the cores across generation steps (default: False)', \
                         default=False)
     parser.add_argument('--seed', type=int, help='random seed (default: None)', default=None)
+    parser.add_argument('--pdisco_exp', action='store_true')
+    parser.add_argument('--run_name', type=str, default="run1")
     args = parser.parse_args()
 
     device = f"cuda:{args.device_ids[0]}" if torch.cuda.is_available() else "cpu"
@@ -64,11 +70,17 @@ if __name__ == '__main__':
         os.mkdir(os.path.join(log_dir,'runs'))
 
     # TensorBoardX
-    writer = SummaryWriter(log_dir=os.path.join(log_dir,'runs'))
+    writer = SummaryWriter(log_dir=os.path.join(log_dir,'runs/{}'.format(args.run_name)))
 
     # Dataset
-    train_dataset = GQNDataset(root_dir=train_data_dir, target_transform=transform_viewpoint)
-    test_dataset = GQNDataset(root_dir=test_data_dir, target_transform=transform_viewpoint)
+    # st()
+    if not args.pdisco_exp:
+        train_dataset = GQNDataset(root_dir=train_data_dir, target_transform=transform_viewpoint)
+        test_dataset = GQNDataset(root_dir=test_data_dir, target_transform=transform_viewpoint)
+    else:
+        train_dataset = GQNDataset_pdisco(root_dir=train_data_dir, target_transform=transform_viewpoint)
+        test_dataset = GQNDataset_pdisco(root_dir=test_data_dir, target_transform=transform_viewpoint)
+    
     D = args.dataset
 
     # Pixel standard-deviation
@@ -108,6 +120,7 @@ if __name__ == '__main__':
             train_iter = iter(train_loader)
             x_data, v_data = next(train_iter)
 
+        # st()
         x_data = x_data.to(device)
         v_data = v_data.to(device)
         x, v, x_q, v_q = sample_batch(x_data, v_data, D)

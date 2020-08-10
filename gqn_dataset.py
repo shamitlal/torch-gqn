@@ -5,7 +5,10 @@ from torchvision.transforms import ToTensor, Resize
 from torch.utils.data import Dataset
 import random
 import pickle
-
+import utils_disco
+import torch.nn.functional as F
+import ipdb 
+st = ipdb.set_trace
 Context = collections.namedtuple('Context', ['frames', 'cameras'])
 Scene = collections.namedtuple('Scene', ['frames', 'cameras'])
 
@@ -61,10 +64,65 @@ class GQNDataset(Dataset):
 
         return images, viewpoints
 
+
+def transform_viewpoint_pdisco(v):
+    w, z = torch.split(v, 3, dim=-1)
+    y, p = torch.split(z, 1, dim=-1)
+
+    # position, [yaw, pitch]
+    view_vector = [w, torch.cos(y), torch.sin(y), torch.cos(p), torch.sin(p)]
+    v_hat = torch.cat(view_vector, dim=-1)
+
+    return v_hat
+
+
+class GQNDataset_pdisco(Dataset):
+    def __init__(self, root_dir, transform=None, target_transform=None):
+        self.root_dir = root_dir
+        self.transform = transform
+        self.target_transform = target_transform
+        self.target_res = 64
+
+        self.all_files = [os.path.join(root_dir,f) for f in os.listdir(root_dir) if f.endswith('.p')]
+
+    def __len__(self):
+        # return len(os.listdir(self.root_dir))
+        return len(self.all_files)
+
+    def __getitem__(self, idx, is_pickle=True):
+
+        scene_path = self.all_files[idx]
+        data = pickle.load(open(scene_path, "rb"))
+        
+        viewpoints = torch.tensor(data['origin_T_camXs_raw'])
+        
+        rx, ry, rz = utils_disco.rotm2eul(viewpoints)
+        rx, ry, rz = rx.unsqueeze(1), ry.unsqueeze(1), rz.unsqueeze(1)
+        xyz = viewpoints[:, :3, -1]
+
+        # print("rx ry rz xyz: ", rx.shape, ry.shape, rz.shape, xyz.shape)
+                
+        view_vector = [xyz, torch.cos(rx), torch.sin(rx), torch.cos(rz), torch.sin(rz)]
+        viewpoints = torch.cat(view_vector, dim=-1)
+        
+        images = torch.tensor(data['rgb_camXs_raw']).permute(0,3,1,2)/255.
+        # print("Image shape: ", images.shape)
+        images = F.interpolate(images, self.target_res).permute(0,2,3,1)
+        # if self.transform:
+        #     images = self.transform(images)
+
+        # if self.target_transform:
+        #     viewpoints = self.target_transform(viewpoints)
+
+        return images, viewpoints
+
+
 def sample_batch(x_data, v_data, D, M=None, seed=None):
     random.seed(seed)
     
-    if D == "Room":
+    if D == "Clevr":
+        K = 5
+    elif D == "Room":
         K = 5
     elif D == "Jaco":
         K = 7
