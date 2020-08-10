@@ -17,11 +17,12 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Generative Query Network Implementation')
     parser.add_argument('--gradient_steps', type=int, default=2*10**6, help='number of gradient steps to run (default: 2 million)')
     parser.add_argument('--batch_size', type=int, default=36, help='size of batch (default: 36)')
-    parser.add_argument('--dataset', type=str, default='Shepard-Metzler', help='dataset (dafault: Shepard-Mtzler)')
+    # parser.add_argument('--dataset', type=str, default='Shepard-Metzler', help='dataset (dafault: Shepard-Mtzler)')
+    parser.add_argument('--dataset', type=str, default='Room', help='dataset (dafault: Shepard-Mtzler)')
     parser.add_argument('--train_data_dir', type=str, help='location of training data', \
-                        default="/projects/katefgroup/datasets/gqn-dataset/rooms_ring_camera/train")
+                        default="/home/shamitl/projects/torch-gqn/rooms_ring_camera-torch/train")
     parser.add_argument('--test_data_dir', type=str, help='location of test data', \
-                        default="/projects/katefgroup/datasets/gqn-dataset/rooms_ring_camera/test")
+                        default="/home/shamitl/projects/torch-gqn/rooms_ring_camera-torch/test")
     parser.add_argument('--root_log_dir', type=str, help='root location of log', default='/home/shamitl/projects/torch-gqn/logs')
     parser.add_argument('--log_dir', type=str, help='log directory (default: GQN)', default='GQN')
     parser.add_argument('--log_interval', type=int, help='interval number of steps for logging', default=100)
@@ -57,8 +58,10 @@ if __name__ == '__main__':
     # st()
     if not os.path.isdir(log_dir):
         os.mkdir(log_dir)
-    os.mkdir(os.path.join(log_dir, 'models'))
-    os.mkdir(os.path.join(log_dir,'runs'))
+    if not os.path.isdir(os.path.join(log_dir, 'models')):
+        os.mkdir(os.path.join(log_dir, 'models'))
+    if not os.path.isdir(os.path.join(log_dir,'runs')):
+        os.mkdir(os.path.join(log_dir,'runs'))
 
     # TensorBoardX
     writer = SummaryWriter(log_dir=os.path.join(log_dir,'runs'))
@@ -77,7 +80,7 @@ if __name__ == '__main__':
     
     # Number of generative layers
     L =args.layers
-
+    # st()
     # Maximum number of training steps
     S_max = args.gradient_steps
 
@@ -108,6 +111,9 @@ if __name__ == '__main__':
         x_data = x_data.to(device)
         v_data = v_data.to(device)
         x, v, x_q, v_q = sample_batch(x_data, v_data, D)
+        x = x.permute(0,1,4,2,3)
+        x_q = x_q.permute(0,3,1,2)
+        # st()
         elbo = model(x, v, v_q, x_q, sigma)
         
         # Logs
@@ -120,6 +126,9 @@ if __name__ == '__main__':
                 v_data_test = v_data_test.to(device)
 
                 x_test, v_test, x_q_test, v_q_test = sample_batch(x_data_test, v_data_test, D, M=3, seed=0)
+                # st()
+                x_test = x_test.permute(0,1,4,2,3)
+                x_q_test = x_q_test.permute(0,3,1,2)
                 elbo_test = model(x_test, v_test, v_q_test, x_q_test, sigma)
                 
                 if len(args.device_ids)>1:

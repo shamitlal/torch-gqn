@@ -4,6 +4,7 @@ import torch
 from torchvision.transforms import ToTensor, Resize
 from torch.utils.data import Dataset
 import random
+import pickle
 
 Context = collections.namedtuple('Context', ['frames', 'cameras'])
 Scene = collections.namedtuple('Scene', ['frames', 'cameras'])
@@ -29,17 +30,28 @@ class GQNDataset(Dataset):
     def __len__(self):
         return len(os.listdir(self.root_dir))
 
-    def __getitem__(self, idx):
-        scene_path = os.path.join(self.root_dir, "{}.pt".format(idx))
-        data = torch.load(scene_path)
+    def __getitem__(self, idx, is_pickle=True):
 
-        byte_to_tensor = lambda x: ToTensor()(Resize(64)((Image.open(io.BytesIO(x)))))
+        if not is_pickle:
+            scene_path = os.path.join(self.root_dir, "{}.pt".format(idx))
+            data = torch.load(scene_path)
+
+            byte_to_tensor = lambda x: ToTensor()(Resize(64)((Image.open(io.BytesIO(x)))))
 
 
-        images = torch.stack([byte_to_tensor(frame) for frame in data.frames])
+            images = torch.stack([byte_to_tensor(frame) for frame in data.frames])
 
-        viewpoints = torch.from_numpy(data.cameras)
-        viewpoints = viewpoints.view(-1, 5)
+            viewpoints = torch.from_numpy(data.cameras)
+            viewpoints = viewpoints.view(-1, 5)
+        else:
+            scene_path = os.path.join(self.root_dir, "{}.p".format(idx))
+            data = pickle.load(open(scene_path, "rb"))
+            viewpoints = torch.tensor(data['camera'])
+            viewpoints = viewpoints.view(-1, 5)
+            
+            images = torch.tensor(data['frames'])
+            # images_ = torch.stack([image_] for image_ in images)
+            # images = images_
 
         if self.transform:
             images = self.transform(images)

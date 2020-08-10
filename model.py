@@ -5,7 +5,8 @@ from torch.distributions import Normal
 from torch.distributions.kl import kl_divergence
 from representation import Pyramid, Tower, Pool
 from core import InferenceCore, GenerationCore
-    
+import ipdb 
+st = ipdb.set_trace
 class GQN(nn.Module):
     def __init__(self, representation="pool", L=12, shared_core=False):
         super(GQN, self).__init__()
@@ -40,12 +41,17 @@ class GQN(nn.Module):
         B, M, *_ = x.size()
         
         # Scene encoder
+        # st()
         if self.representation=='tower':
             r = x.new_zeros((B, 256, 16, 16))
         else:
             r = x.new_zeros((B, 256, 1, 1))
         for k in range(M):
+            # try:
             r_k = self.phi(x[:, k], v[:, k])
+            # except Exception as e:
+            #     st()
+            #     print("Got exception")
             r += r_k
             
         # Generator initial state
