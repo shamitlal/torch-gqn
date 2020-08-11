@@ -37,7 +37,7 @@ class GQN(nn.Module):
         self.eta_e = nn.Conv2d(128, 2*3, kernel_size=5, stride=1, padding=2)
 
     # EstimateELBO
-    def forward(self, x, v, v_q, x_q, sigma):
+    def forward(self, x, v, v_q, x_q, sigma, few_shot=False):
         B, M, *_ = x.size()
         
         # Scene encoder
@@ -53,7 +53,9 @@ class GQN(nn.Module):
             #     st()
             #     print("Got exception")
             r += r_k
-            
+        
+        if few_shot:
+            return r
         # Generator initial state
         c_g = x.new_zeros((B, 128, 16, 16))
         h_g = x.new_zeros((B, 128, 16, 16))
