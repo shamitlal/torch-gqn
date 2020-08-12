@@ -498,9 +498,9 @@ def get_cropped_rgb(x_data, v_data, metadata, args, __p, __u, view_idx, writer, 
                 cropped_rgb = F.interpolate(rgb[:, :, ymin:ymax, xmin:xmax], (64,64))
                 rgb_vis = torch.cat([rgb, rgb_masked], dim=-1)
 
-                writer.add_image("Cropped_rgb/RGB_RGBMasked", rgb_vis[0])
-                writer.add_image("Cropped_rgb/cropped", cropped_rgb[0])
-                writer.add_text("Cropped_rgb/cropped", objcat)
+                # writer.add_image("Cropped_rgb/RGB_RGBMasked", rgb_vis[0])
+                # writer.add_image("Cropped_rgb/cropped", cropped_rgb[0])
+                # writer.add_text("Cropped_rgb/cropped", objcat)
                 rgb_list.append(cropped_rgb[0])
                 extrinsics_list.append(v_data[b])
     # st()
@@ -524,3 +524,20 @@ def get_cropped_rgb(x_data, v_data, metadata, args, __p, __u, view_idx, writer, 
     # gt_boxesR_theta = transform_corners_to_boxes(gt_boxesR_corners_.reshape(-1, N, 8, 3))
     # gt_boxesR_end = get_ends_of_corner(gt_boxesR_corners)
     # return None
+
+def is_dicts_filled(content, style, few_shot_size):
+    if len(list(content.keys())) < 3:
+        return False
+
+    if len(list(style.keys())) < 16:
+        return False
+    
+    for ckey in content.keys():
+        if len(content[ckey]) < few_shot_size:
+            return False 
+    
+    for skey in style.keys():
+        if len(style[skey]) < few_shot_size:
+            return False
+
+    return True

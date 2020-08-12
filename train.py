@@ -12,6 +12,7 @@ from gqn_dataset import GQNDataset, Scene, transform_viewpoint, sample_batch, GQ
 from scheduler import AnnealingStepLR
 from model import GQN
 import utils_disco
+from collections import defaultdict
 import ipdb 
 st = ipdb.set_trace
 '''
@@ -44,6 +45,7 @@ if __name__ == '__main__':
     parser.add_argument('--run_name', type=str, default="run1")
     parser.add_argument('--N', type=int, default=10, help='number of objects in scene')
     parser.add_argument('--few_shot', action='store_true')
+    parser.add_argument('--few_shot_size', type=int, default=5, help='few shot size')
     args = parser.parse_args()
 
     device = f"cuda:{args.device_ids[0]}" if torch.cuda.is_available() else "cpu"
@@ -95,7 +97,8 @@ if __name__ == '__main__':
     __p = lambda x: utils_disco.pack_seqdim(x, B)
     __u = lambda x: utils_disco.unpack_seqdim(x, B)
     
-    
+    content_dict = defaultdict(lambda:[])
+    style_dict = defaultdict(lambda:[])
     # Number of generative layers
     L =args.layers
     # st()
@@ -119,6 +122,7 @@ if __name__ == '__main__':
     train_iter = iter(train_loader)
     x_data_test, v_data_test, metadata_test = next(iter(test_loader))
 
+    few_shot_filled = False
     # Training Iterations
     for t in tqdm(range(S_max)):
         try:
@@ -139,7 +143,81 @@ if __name__ == '__main__':
                 x_q = x_q.permute(0,3,1,2)
                 x_data_, v_data_, label_list = utils_disco.get_cropped_rgb(x, v, metadata, args, __p, __u, context_idx[0], writer, t)
                 # st()
+                # torch.Size([6, 256, 1, 1])
                 rep = model(x_data_, v_data_, x_data_, v_data_, sigma, few_shot=True)
+
+                if utils_disco.is_dicts_filled(content_dict, style_dict, args.few_shot_size):
+                    # run evaluation code here.
+                    if few_shot_filled == False:
+                        few_shot_filled = True
+                        style_corr = 0
+                        content_corr = 0
+                        style_total = 0
+                        content_tot = 0
+                        
+                        for ckey in content_dict.keys():
+                            mean_tensor = torch.mean(torch.stack(content_dict[ckey]), dim=0)
+                            content_dict[ckey] = mean_tensor
+                        
+                        for ckey in style_dict.keys():
+                            mean_tensor = torch.mean(torch.stack(style_dict[ckey]), dim=0)
+                            style_dict[ckey] = mean_tensor
+                        
+                    
+                    for i in range(rep.shape[0]):
+                        content_tot += 1.0
+                        rep_i = rep[i,:,0,0]
+                        content_name, style_name = objcat.split('/')
+                        maxi = -100000000
+                        maxi_name = ""
+                        for ckey in content_dict.keys():
+                            # st()
+                            val = content_dict[ckey]
+                            dotprod = torch.sum(val*rep_i)/(val.norm() * rep_i.norm() + 1e-5)
+                            if dotprod > maxi:
+                                maxi = dotprod
+                                maxi_name = ckey
+                        
+                        if content_name == maxi_name:
+                            content_corr += 1.0
+                    
+                    
+                    for i in range(rep.shape[0]):
+                        style_total += 1.0
+                        rep_i = rep[i,:,0,0]
+                        content_name, style_name = objcat.split('/')
+                        maxi = -100000000
+                        maxi_name = ""
+                        for ckey in style_dict.keys():
+                            # st()
+                            val = style_dict[ckey]
+                            dotprod = torch.sum(val*rep_i)/(val.norm() * rep_i.norm() + 1e-5)
+                            if dotprod > maxi:
+                                maxi = dotprod
+                                maxi_name = ckey
+                        
+                        if style_name == maxi_name:
+                            style_corr += 1.0
+
+                    print("Content precision: ", content_corr/content_tot)    
+                    print("Style precision: ", style_corr/style_total)    
+                    
+                else:
+                    # st()
+                    for i in range(rep.shape[0]):
+                        objcat = label_list[i]
+                        rep_i = rep[i,:,0,0]
+                        content_name, style_name = objcat.split('/')
+                        if len(content_dict[content_name]) < args.few_shot_size:
+                            content_dict[content_name].append(rep_i)
+
+                        if len(style_dict[style_name]) < args.few_shot_size:
+                            style_dict[style_name].append(rep_i)
+                        
+
+
+
+
         else:
             x, v, x_q, v_q, context_idx, query_idx = sample_batch(x_data, v_data, D)
             x = x.permute(0,1,4,2,3)
