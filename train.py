@@ -109,6 +109,9 @@ if __name__ == '__main__':
     model = GQN(representation=args.representation, L=L, shared_core=args.shared_core).to(device)
     if len(args.device_ids)>1:
         model = nn.DataParallel(model, device_ids=args.device_ids)
+    # st()
+    if args.few_shot:
+        model.load_state_dict(torch.load("/home/shamitl/projects/torch-gqn/logs/GQN/models/model-40000.pt"))
 
     optimizer = torch.optim.Adam(model.parameters(), lr=5e-4, betas=(0.9, 0.999), eps=1e-08)
     scheduler = AnnealingStepLR(optimizer, mu_i=5e-4, mu_f=5e-5, n=1.6e6)
