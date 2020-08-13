@@ -23,6 +23,8 @@ python train.py --pdisco_exp --run_name run_clevr_singleobj --train_data_dir /pr
  
 python train.py --pdisco_exp --run_name run_clevr_singleobj_large --train_data_dir /projects/katefgroup/datasets/clevr_vqa/raw/npys/single_obj_large_480_all --test_data_dir /projects/katefgroup/datasets/clevr_vqa/raw/npys/single_obj_large_480_all
 
+python train.py --pdisco_exp --train_data_dir /projects/katefgroup/datasets/clevr_vqa/raw/npys/single_obj_large_480_all --test_data_dir /projects/katefgroup/datasets/clevr_vqa/raw/npys/single_obj_large_480_all --few_shot --batch_size 1 --run_name testtest
+
 
 '''
 
@@ -122,8 +124,9 @@ if __name__ == '__main__':
         model = nn.DataParallel(model, device_ids=args.device_ids)
     # st()
     if args.few_shot:
-        model.load_state_dict(torch.load("/home/shamitl/projects/torch-gqn/logs/GQN/models/model-40000.pt"))
-
+        model.load_state_dict(torch.load("/home/shamitl/projects/torch-gqn/logs/GQN/models/run_clevr_singleobj_large/model-6000.pt"))
+        print("Loaded checkpoint")
+        
     optimizer = torch.optim.Adam(model.parameters(), lr=5e-4, betas=(0.9, 0.999), eps=1e-08)
     scheduler = AnnealingStepLR(optimizer, mu_i=5e-4, mu_f=5e-5, n=1.6e6)
 

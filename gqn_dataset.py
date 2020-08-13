@@ -117,8 +117,7 @@ class GQNDataset_pdisco(Dataset):
         # print("image size 2: ", img_save.shape)
         # plt.imsave("/home/shamitl/tmp/gqn_rgb.jpg", img_save[0])
 
-        if not self.few_shot:
-            images = F.interpolate(images, self.target_res)
+        images = F.interpolate(images, self.target_res)
 
         images = images.permute(0,2,3,1)
         # print("Image shape: ", images.shape)
@@ -129,8 +128,7 @@ class GQNDataset_pdisco(Dataset):
         bbox_origin = data['bbox_origin']
         pix_T_cams_raw = data['pix_T_cams_raw']
         # print("Pixt camXs shape: ", pix_T_cams_raw.shape)
-        if not self.few_shot:
-            pix_T_cams_raw = utils_disco.scale_intrinsics(torch.tensor(pix_T_cams_raw), self.target_res/(1.*W_orig), self.target_res/(1.*H_orig))
+        pix_T_cams_raw = utils_disco.scale_intrinsics(torch.tensor(pix_T_cams_raw), self.target_res/(1.*W_orig), self.target_res/(1.*H_orig))
         
         
         camR_T_origin_raw = data['camR_T_origin_raw']
