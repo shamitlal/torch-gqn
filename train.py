@@ -18,6 +18,17 @@ st = ipdb.set_trace
 '''
 Command for CLEVR:
 python train.py --pdisco_exp --run_name run_test --train_data_dir /projects/katefgroup/datasets/clevr_vqa/raw/npys/multi_obj_480_a --test_data_dir /projects/katefgroup/datasets/clevr_vqa/raw/npys/multi_obj_480_a 
+
+python train.py --pdisco_exp --run_name run_clevr_singleobj --train_data_dir /projects/katefgroup/datasets/clevr_vqa/raw/npys/single_obj_480_all --test_data_dir /projects/katefgroup/datasets/clevr_vqa/raw/npys/single_obj_480_all
+ 
+python train.py --pdisco_exp --run_name run_clevr_singleobj_large --train_data_dir /projects/katefgroup/datasets/clevr_vqa/raw/npys/single_obj_large_480_all --test_data_dir /projects/katefgroup/datasets/clevr_vqa/raw/npys/single_obj_large_480_all
+
+
+'''
+
+
+'''
+python train.py --pdisco_exp --train_data_dir /projects/katefgroup/datasets/clevr_vqa/raw/npys/multi_obj_480_a --test_data_dir /projects/katefgroup/datasets/clevr_vqa/raw/npys/multi_obj_480_a --few_shot --batch_size 1 --run_name run_test_5
 '''
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Generative Query Network Implementation')
@@ -259,7 +270,7 @@ if __name__ == '__main__':
                     writer.add_image('test_generation', make_grid(x_q_hat_test, 6, pad_value=1), t)
 
                 if t % save_interval_num == 0:
-                    torch.save(model.state_dict(), log_dir + "/models/model-{}.pt".format(t))
+                    torch.save(model.state_dict(), log_dir + "/models/{}/model-{}.pt".format(args.run_name, t))
 
             # Compute empirical ELBO gradients
             (-elbo.mean()).backward()
@@ -274,5 +285,5 @@ if __name__ == '__main__':
             # Pixel-variance annealing
             sigma = max(sigma_f + (sigma_i - sigma_f)*(1 - t/(2e5)), sigma_f)
             
-    torch.save(model.state_dict(), log_dir + "/models/model-final.pt")  
+    torch.save(model.state_dict(), log_dir + "/models/{}/model-final.pt".format(args.run_name))  
     writer.close()

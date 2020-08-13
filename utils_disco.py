@@ -504,6 +504,11 @@ def get_cropped_rgb(x_data, v_data, metadata, args, __p, __u, view_idx, writer, 
                 rgb_list.append(cropped_rgb[0])
                 extrinsics_list.append(v_data[b])
     # st()
+    rgb_list_vis = torch.cat(rgb_list, dim=-1)
+    concat_text = "__".join(label_list)
+    writer.add_image("Cropped_rgb/RGB_Cropped", rgb_list_vis)
+    writer.add_text("Cropped_rgb/RGB_Cropped", concat_text)
+
     x_data_ = torch.stack(rgb_list, dim=0)
     v_data_ = torch.stack(extrinsics_list, dim=0)
     return x_data_.unsqueeze(1), v_data_, label_list
