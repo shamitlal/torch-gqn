@@ -123,6 +123,9 @@ if __name__ == '__main__':
     # st()
     if args.few_shot:
         model.load_state_dict(torch.load("/home/shamitl/projects/torch-gqn/logs/GQN/models/model-40000.pt"))
+    
+    # model.load_state_dict(torch.load("/home/shamitl/projects/torch-gqn/logs/GQN/models/run_clevr_singleobj_large/model-14000.pt"))
+    model.load_state_dict(torch.load("/home/shamitl/projects/torch-gqn/logs/GQN/models/model-60000.pt"))
 
     optimizer = torch.optim.Adam(model.parameters(), lr=5e-4, betas=(0.9, 0.999), eps=1e-08)
     scheduler = AnnealingStepLR(optimizer, mu_i=5e-4, mu_f=5e-5, n=1.6e6)
@@ -270,6 +273,8 @@ if __name__ == '__main__':
                     writer.add_image('test_generation', make_grid(x_q_hat_test, 6, pad_value=1), t)
 
                 if t % save_interval_num == 0:
+                    if not os.path.isdir(log_dir + "/models/{}".format(args.run_name)):
+                        os.mkdir(log_dir + "/models/{}".format(args.run_name))
                     torch.save(model.state_dict(), log_dir + "/models/{}/model-{}.pt".format(args.run_name, t))
 
             # Compute empirical ELBO gradients

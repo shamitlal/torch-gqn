@@ -181,6 +181,8 @@ def sample_batch(x_data, v_data, D, M=None, seed=None):
 
     context_idx = random.sample(range(x_data.size(1)), M)
     query_idx = random.randint(0, x_data.size(1)-1)
+    if M==3:
+        query_idx = 0
 
     # Sample view
     x, v = x_data[:, context_idx], v_data[:, context_idx]
