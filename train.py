@@ -15,6 +15,11 @@ import utils_disco
 from collections import defaultdict
 import ipdb 
 st = ipdb.set_trace
+
+'''
+Commands for replica:
+python train.py --pdisco_exp --run_name replica --train_data_dir /projects/katefgroup/viewpredseg/processed/replica_selfsup_processed/npy/bc/ --test_data_dir /projects/katefgroup/viewpredseg/processed/replica_selfsup_processed/npy/bc/
+'''
 '''
 Command for CLEVR:
 python train.py --pdisco_exp --run_name run_test --train_data_dir /projects/katefgroup/datasets/clevr_vqa/raw/npys/multi_obj_480_a --test_data_dir /projects/katefgroup/datasets/clevr_vqa/raw/npys/multi_obj_480_a 
@@ -35,7 +40,7 @@ if __name__ == '__main__':
     parser.add_argument('--gradient_steps', type=int, default=2*10**6, help='number of gradient steps to run (default: 2 million)')
     parser.add_argument('--batch_size', type=int, default=36, help='size of batch (default: 36)')
     # parser.add_argument('--dataset', type=str, default='Shepard-Metzler', help='dataset (dafault: Shepard-Mtzler)')
-    parser.add_argument('--dataset', type=str, default='Room', help='dataset (dafault: Shepard-Mtzler)')
+    parser.add_argument('--dataset', type=str, default='Replica', help='dataset (dafault: Shepard-Mtzler)')
     parser.add_argument('--train_data_dir', type=str, help='location of training data', \
                         default="/home/shamitl/projects/torch-gqn/rooms_ring_camera-torch/train")
     parser.add_argument('--test_data_dir', type=str, help='location of test data', \
@@ -125,7 +130,7 @@ if __name__ == '__main__':
         model.load_state_dict(torch.load("/home/shamitl/projects/torch-gqn/logs/GQN/models/model-40000.pt"))
     
     # model.load_state_dict(torch.load("/home/shamitl/projects/torch-gqn/logs/GQN/models/run_clevr_singleobj_large/model-14000.pt"))
-    model.load_state_dict(torch.load("/home/shamitl/projects/torch-gqn/logs/GQN/models/model-60000.pt"))
+    # model.load_state_dict(torch.load("/home/shamitl/projects/torch-gqn/logs/GQN/models/model-60000.pt"))
 
     optimizer = torch.optim.Adam(model.parameters(), lr=5e-4, betas=(0.9, 0.999), eps=1e-08)
     scheduler = AnnealingStepLR(optimizer, mu_i=5e-4, mu_f=5e-5, n=1.6e6)
@@ -147,10 +152,12 @@ if __name__ == '__main__':
         except StopIteration:
             train_iter = iter(train_loader)
             x_data, v_data, metadata = next(train_iter)
-        # st()
+
         # cropped_rgbs = utils_disco.get_cropped_rgb(x_data, v_data, metadata, args, __p, __u)
         x_data = x_data.to(device)
         v_data = v_data.to(device)
+        x_data = x_data.float()
+        v_data = v_data.float()
         if args.few_shot:
             # st()
             model.eval()

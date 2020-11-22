@@ -9,6 +9,7 @@ import utils_disco
 import torch.nn.functional as F
 import numpy as np
 import matplotlib.pyplot as plt
+import glob
 import ipdb 
 st = ipdb.set_trace
 Context = collections.namedtuple('Context', ['frames', 'cameras'])
@@ -86,8 +87,7 @@ class GQNDataset_pdisco(Dataset):
         self.target_res = 64
         self.N = 10
         self.few_shot = few_shot
-
-        self.all_files = [os.path.join(root_dir,f) for f in os.listdir(root_dir) if f.endswith('.p')]
+        self.all_files = glob.glob(f'{root_dir}/**/*.p')
 
     def __len__(self):
         # return len(os.listdir(self.root_dir))
@@ -106,7 +106,7 @@ class GQNDataset_pdisco(Dataset):
         xyz = viewpoints[:, :3, -1]
 
                 
-        view_vector = [xyz, torch.cos(rx), torch.sin(rx), torch.cos(rz), torch.sin(rz)]
+        view_vector = [xyz, torch.cos(rx), torch.sin(rx), torch.cos(ry), torch.sin(ry), torch.cos(rz), torch.sin(rz)]
         viewpoints = torch.cat(view_vector, dim=-1)
         
         images = torch.tensor(data['rgb_camXs_raw']).permute(0,3,1,2)/255.
@@ -126,27 +126,31 @@ class GQNDataset_pdisco(Dataset):
         # plt.imsave("/home/shamitl/tmp/gqn_rgb_resized.jpg", img_save[0])
 
         
-        bbox_origin = data['bbox_origin']
+        
         pix_T_cams_raw = data['pix_T_cams_raw']
         # print("Pixt camXs shape: ", pix_T_cams_raw.shape)
         if not self.few_shot:
             pix_T_cams_raw = utils_disco.scale_intrinsics(torch.tensor(pix_T_cams_raw), self.target_res/(1.*W_orig), self.target_res/(1.*H_orig))
         
         
-        camR_T_origin_raw = data['camR_T_origin_raw']
         origin_T_camXs_raw = data['origin_T_camXs_raw']
-
+        camR_T_origin_raw = np.tile(np.expand_dims(np.eye(4), axis=0), (origin_T_camXs_raw.shape[0], 1, 1))
+        
+        # Uncomment this part after fixing.
+        '''
+        bbox_origin = data['bbox_origin']
         shape_name = data['shape_list']
         color_name = data['color_list']
         material_name = data['material_list']
         
         all_name = []
         all_style = []
-        for index in range(len(shape_name)):
-            name = shape_name[index] + "/" + color_name[index] + "_" + material_name[index]
-            style_name  = color_name[index] + "_" + material_name[index]
-            all_name.append(name)
-            all_style.append(style_name)
+        parse_replica_viewseg_data
+        # for index in range(len(shape_name)):
+        #     name = shape_name[index] + "/" + color_name[index] + "_" + material_name[index]
+        #     style_name  = color_name[index] + "_" + material_name[index]
+        #     all_name.append(name)
+        #     all_style.append(style_name)
 
         object_category = all_name
         num_boxes = bbox_origin.shape[0]
@@ -154,9 +158,10 @@ class GQNDataset_pdisco(Dataset):
         score = np.pad(np.ones([num_boxes]),[0,self.N-num_boxes])
         bbox_origin = np.pad(bbox_origin,[[0,self.N-num_boxes],[0,0],[0,0]])
         object_category = np.pad(object_category,[[0,self.N-num_boxes]],lambda x,y,z,m: "0")
-
         metadata = {"object_category":list(object_category), "bbox_origin":torch.tensor(bbox_origin).cuda(), "score":torch.tensor(score.astype(np.float32)).cuda(), "pix_T_cams_raw":torch.tensor(pix_T_cams_raw).cuda(), "camR_T_origin_raw":torch.tensor(camR_T_origin_raw).cuda(), "origin_T_camXs_raw":torch.tensor(origin_T_camXs_raw).cuda()}
-        # metadata = {}
+        '''
+        
+        metadata = {}
         # metadata = {"bbox_origin":torch.tensor(bbox_origin), "score":torch.tensor(score.astype(np.float32)), "pix_T_cams_raw":torch.tensor(pix_T_cams_raw), "camR_T_origin_raw":torch.tensor(camR_T_origin_raw), "origin_T_camXs_raw":torch.tensor(origin_T_camXs_raw)}
         return images, viewpoints, metadata
 
@@ -164,7 +169,9 @@ class GQNDataset_pdisco(Dataset):
 def sample_batch(x_data, v_data, D, M=None, seed=None):
     random.seed(seed)
     
-    if D == "Clevr":
+    if D == "Replica":
+        K = 25
+    elif D == "Clevr":
         K = 5
     elif D == "Room":
         K = 5
@@ -178,7 +185,7 @@ def sample_batch(x_data, v_data, D, M=None, seed=None):
     # Sample number of views
     if not M:
         M = random.randint(1, K)
-
+    
     context_idx = random.sample(range(x_data.size(1)), M)
     query_idx = random.randint(0, x_data.size(1)-1)
     if M==3:
@@ -190,3 +197,37 @@ def sample_batch(x_data, v_data, D, M=None, seed=None):
     x_q, v_q = x_data[:, query_idx], v_data[:, query_idx]
     
     return x, v, x_q, v_q, context_idx, query_idx
+
+def parse_replica_viewseg_data(d):
+    numviews = len(d['object_info_s_list'])
+    while True:
+        random_view = np.random.randint(numviews)
+        object_info = d['object_info_s_list'][random_view]
+        if len(object_info) > 0:
+            break
+    instanceid_list = []
+    semanticid_list = []
+    bbox_list = []
+    semantic_map_list = []
+    for key in object_info.keys():
+        # semantic_map = object_info[key][5].astype(np.float32)
+        # semantic_map_list.append(semantic_map)
+        instanceid_list.append(str(key))
+        semanticid_list.append(object_info[key][0]+"_"+str(object_info[key][1]))
+        bbox = object_info[key][3]
+        bbox = bbox.reshape(1,1,2,3)
+        bbox_list.append(torch.tensor(bbox))
+
+    # we will use only 1 object for object centric stuff
+    obj_idx = np.random.randint(len(instanceid_list))
+    selected_instanceid = int(instanceid_list[obj_idx])
+    for i in range(numviews):
+        object_info = d['object_info_s_list'][i]
+        if selected_instanceid in object_info:
+            smap = object_info[selected_instanceid][5].astype(np.float32)
+        else:
+            smap = np.zeros((hyp.H, hyp.W))
+        semantic_map_list.append(smap)
+        
+    semantic_map = np.stack(semantic_map_list)
+    return [instanceid_list[obj_idx]], [semanticid_list[obj_idx]], [bbox_list[obj_idx]], semantic_map.astype(np.float32)

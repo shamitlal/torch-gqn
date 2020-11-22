@@ -65,8 +65,8 @@ class Pool(nn.Module):
         self.conv2 = nn.Conv2d(256, 256, kernel_size=2, stride=2)
         self.conv3 = nn.Conv2d(256, 128, kernel_size=3, stride=1, padding=1)
         self.conv4 = nn.Conv2d(128, 256, kernel_size=2, stride=2)
-        self.conv5 = nn.Conv2d(256+7, 256, kernel_size=3, stride=1, padding=1)
-        self.conv6 = nn.Conv2d(256+7, 128, kernel_size=3, stride=1, padding=1)
+        self.conv5 = nn.Conv2d(256+9, 256, kernel_size=3, stride=1, padding=1)
+        self.conv6 = nn.Conv2d(256+9, 128, kernel_size=3, stride=1, padding=1)
         self.conv7 = nn.Conv2d(128, 256, kernel_size=3, stride=1, padding=1)
         self.conv8 = nn.Conv2d(256, 256, kernel_size=1, stride=1)
         self.pool  = nn.AvgPool2d(16)
@@ -80,10 +80,12 @@ class Pool(nn.Module):
         r = F.relu(self.conv4(r)) + skip_out
 
         # Broadcast
-        v = v.view(v.size(0), 7, 1, 1).repeat(1, 1, 16, 16)
+        v = v.view(v.size(0), 9, 1, 1).repeat(1, 1, 16, 16)
         
         # Resisual connection
         # Concatenate
+        r = r.float()
+        v = v.float()
         skip_in = torch.cat((r, v), dim=1)
         skip_out  = F.relu(self.conv5(skip_in))
 

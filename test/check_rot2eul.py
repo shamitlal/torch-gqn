@@ -39,7 +39,10 @@ def rotm2eul(r):
     # rz[cond] = 0.0
     return rx, ry, rz
 
-a = pickle.load(open("multi_obj_480_a_15905220985305424.p","rb"))
+a = pickle.load(open("/projects/katefgroup/viewpredseg/processed/replica_selfsup_processed/npy/bc/frl_apartment_3_10/16049720359202785.p","rb"))
 extr = torch.tensor(a['origin_T_camXs_raw'])
 rx,ry,rz = rotm2eul(extr)
+print(rx)
+print(ry)
+print(rz)
 
