@@ -13,12 +13,15 @@ from scheduler import AnnealingStepLR
 from model import GQN
 import utils_disco
 from collections import defaultdict
+from few_shot_runner import few_shot_runner
+from replica_scripts import replica_constants
 import ipdb 
 st = ipdb.set_trace
 
 '''
 Commands for replica:
-python train.py --pdisco_exp --run_name replica --train_data_dir /projects/katefgroup/viewpredseg/processed/replica_selfsup_processed/npy/bc/ --test_data_dir /projects/katefgroup/viewpredseg/processed/replica_selfsup_processed/npy/bc/
+Train: python train.py --pdisco_exp --run_name replica --train_data_dir /projects/katefgroup/viewpredseg/processed/replica_selfsup_processed/npy/bc/ --test_data_dir /projects/katefgroup/viewpredseg/processed/replica_selfsup_processed/npy/bc/
+Few shot eval: CUDA_VISIBLE_DEVICES=0 python train.py --pdisco_exp --run_name replica_eval_152_19_1shot --train_data_dir /projects/katefgroup/viewpredseg/processed/replica_selfsup_processed/npy/bc/ --test_data_dir /projects/katefgroup/viewpredseg/processed/replica_selfsup_processed/npy/bc/ --few_shot
 '''
 '''
 Command for CLEVR:
@@ -61,7 +64,8 @@ if __name__ == '__main__':
     parser.add_argument('--run_name', type=str, default="run1")
     parser.add_argument('--N', type=int, default=10, help='number of objects in scene')
     parser.add_argument('--few_shot', action='store_true')
-    parser.add_argument('--few_shot_size', type=int, default=5, help='few shot size')
+    parser.add_argument('--munit_use_shape_as_style', action='store_true')
+    parser.add_argument('--few_shot_size', type=int, default=1, help='few shot size')
     args = parser.parse_args()
 
     device = f"cuda:{args.device_ids[0]}" if torch.cuda.is_available() else "cpu"
@@ -109,6 +113,9 @@ if __name__ == '__main__':
     sigma = sigma_i
 
     # Number of scenes over which each weight update is computed
+    if args.few_shot:
+        args.batch_size = 1
+
     B = args.batch_size
     __p = lambda x: utils_disco.pack_seqdim(x, B)
     __u = lambda x: utils_disco.unpack_seqdim(x, B)
@@ -127,7 +134,15 @@ if __name__ == '__main__':
         model = nn.DataParallel(model, device_ids=args.device_ids)
     # st()
     if args.few_shot:
-        model.load_state_dict(torch.load("/home/shamitl/projects/torch-gqn/logs/GQN/models/model-40000.pt"))
+        munit_shape_to_style = replica_constants.styledict
+        num_shapes = len(munit_shape_to_style)
+        num_styles = replica_constants.get_num_unique_styles(munit_shape_to_style)
+        if args.munit_use_shape_as_style:
+            num_styles = num_shapes
+
+        few_shot_runner_style = few_shot_runner("Munit_style", args.few_shot_size, num_styles)
+        few_shot_runner_shape = few_shot_runner("Munit_shape", args.few_shot_size, num_shapes)
+        # model.load_state_dict(torch.load("/home/shamitl/projects/torch-gqn/logs/GQN/models/model-40000.pt"))
     
     # model.load_state_dict(torch.load("/home/shamitl/projects/torch-gqn/logs/GQN/models/run_clevr_singleobj_large/model-14000.pt"))
     # model.load_state_dict(torch.load("/home/shamitl/projects/torch-gqn/logs/GQN/models/model-60000.pt"))
@@ -137,7 +152,7 @@ if __name__ == '__main__':
 
     # kwargs = {'num_workers':num_workers, 'pin_memory': True} if torch.cuda.is_available() else {}
     kwargs = {'num_workers':num_workers} if torch.cuda.is_available() else {}
-
+       
     train_loader = DataLoader(train_dataset, batch_size=B, shuffle=True, **kwargs)
     test_loader = DataLoader(test_dataset, batch_size=B, shuffle=True, **kwargs)
 
@@ -159,88 +174,26 @@ if __name__ == '__main__':
         x_data = x_data.float()
         v_data = v_data.float()
         if args.few_shot:
-            # st()
             model.eval()
             with torch.no_grad():
-                x, v, x_q, v_q, context_idx, query_idx = sample_batch(x_data, v_data, D, M=1)
-                x = x.permute(0,1,4,2,3)
-                x_q = x_q.permute(0,3,1,2)
-                x_data_, v_data_, label_list = utils_disco.get_cropped_rgb(x, v, metadata, args, __p, __u, context_idx[0], writer, t)
-                # st()
-                # torch.Size([6, 256, 1, 1])
-                rep = model(x_data_, v_data_, x_data_, v_data_, sigma, few_shot=True)
+                # x, v, x_q, v_q, context_idx, query_idx = sample_batch(x_data, v_data, D, M=1)
+                # x = x.permute(0,1,4,2,3)
+                # x_q = x_q.permute(0,3,1,2)
+                random_view = metadata['selected_view']
+                x = x_data[:, random_view].permute(0,1,4,2,3)
+                v_data_ = v_data[:, random_view]
+                x_data_ = utils_disco.get_cropped_rgb(x, metadata, writer)
+                if x_data_ != None:
+                    # torch.Size([6, 256, 1, 1])
+                    rep = model(x_data_, v_data_, x_data_, v_data_, sigma, few_shot=True)
+                    shape_label = str(metadata['instid'].item())
+                    if args.munit_use_shape_as_style:
+                        style_label = shape_label
+                    else:
+                        style_label = munit_shape_to_style[int(shape_label)]
 
-                if utils_disco.is_dicts_filled(content_dict, style_dict, args.few_shot_size):
-                    # run evaluation code here.
-                    if few_shot_filled == False:
-                        few_shot_filled = True
-                        style_corr = 0
-                        content_corr = 0
-                        style_total = 0
-                        content_tot = 0
-                        
-                        for ckey in content_dict.keys():
-                            mean_tensor = torch.mean(torch.stack(content_dict[ckey]), dim=0)
-                            content_dict[ckey] = mean_tensor
-                        
-                        for ckey in style_dict.keys():
-                            mean_tensor = torch.mean(torch.stack(style_dict[ckey]), dim=0)
-                            style_dict[ckey] = mean_tensor
-                        
-                    
-                    for i in range(rep.shape[0]):
-                        content_tot += 1.0
-                        rep_i = rep[i,:,0,0]
-                        content_name, style_name = objcat.split('/')
-                        maxi = -100000000
-                        maxi_name = ""
-                        for ckey in content_dict.keys():
-                            # st()
-                            val = content_dict[ckey]
-                            dotprod = torch.sum(val*rep_i)/(val.norm() * rep_i.norm() + 1e-5)
-                            if dotprod > maxi:
-                                maxi = dotprod
-                                maxi_name = ckey
-                        
-                        if content_name == maxi_name:
-                            content_corr += 1.0
-                    
-                    
-                    for i in range(rep.shape[0]):
-                        style_total += 1.0
-                        rep_i = rep[i,:,0,0]
-                        content_name, style_name = objcat.split('/')
-                        maxi = -100000000
-                        maxi_name = ""
-                        for ckey in style_dict.keys():
-                            # st()
-                            val = style_dict[ckey]
-                            dotprod = torch.sum(val*rep_i)/(val.norm() * rep_i.norm() + 1e-5)
-                            if dotprod > maxi:
-                                maxi = dotprod
-                                maxi_name = ckey
-                        
-                        if style_name == maxi_name:
-                            style_corr += 1.0
-
-                    print("Content precision: ", content_corr/content_tot)    
-                    print("Style precision: ", style_corr/style_total)    
-                    
-                else:
-                    # st()
-                    for i in range(rep.shape[0]):
-                        objcat = label_list[i]
-                        rep_i = rep[i,:,0,0]
-                        content_name, style_name = objcat.split('/')
-                        if len(content_dict[content_name]) < args.few_shot_size:
-                            content_dict[content_name].append(rep_i)
-
-                        if len(style_dict[style_name]) < args.few_shot_size:
-                            style_dict[style_name].append(rep_i)
-                        
-
-
-
+                    few_shot_runner_shape.step(shape_label, rep, writer, t)
+                    few_shot_runner_style.step(style_label, rep, writer, t)
 
         else:
             x, v, x_q, v_q, context_idx, query_idx = sample_batch(x_data, v_data, D)

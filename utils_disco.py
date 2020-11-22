@@ -445,90 +445,19 @@ def apply_pix_T_cam(pix_T_cam, xyz):
     xy = torch.stack([x, y], axis=-1)
     return xy
 
-def get_cropped_rgb(x_data, v_data, metadata, args, __p, __u, view_idx, writer, step):
-    N = args.N
-    __pb = lambda x: pack_boxdim(x, N)
-    __ub = lambda x: unpack_boxdim(x, N)
+def get_cropped_rgb(x_data, metadata, writer):
 
-    B = args.batch_size
-    gt_boxes_origin_corners = metadata['bbox_origin']
-    pix_T_cams_raw = metadata['pix_T_cams_raw']
-    score = metadata['score']
-    camR_T_origin_raw = metadata['camR_T_origin_raw']
-    origin_T_camXs_raw = metadata['origin_T_camXs_raw']
-    object_category = metadata['object_category']
-    # st()
-    camXs_T_origin = __u(safe_inverse(__p(origin_T_camXs_raw)))
-    gt_boxes_origin = get_ends_of_corner(gt_boxes_origin_corners)
-    gt_boxes_origin_end = torch.reshape(gt_boxes_origin,[B,-1,2,3])
-    gt_boxes_origin_theta = get_alignedboxes2thetaformat(gt_boxes_origin_end)
-    gt_boxes_origin_corners = transform_boxes_to_corners(gt_boxes_origin_theta, B)
-    # st()
-    gt_boxesXI_corners = __ub(apply_4x4(camXs_T_origin[:, view_idx], __pb(gt_boxes_origin_corners)))
-    bbox_camX_ends = get_ends_of_corner(gt_boxesXI_corners)
-    bbox_camX_theta = get_alignedboxes2thetaformat(bbox_camX_ends)
-    bbox_camXI_corners = transform_boxes_to_corners(bbox_camX_theta, B)
-    pix_T_camXI = pix_T_cams_raw[:,view_idx]
-    bbox_pix_corners = __ub(apply_pix_T_cam(pix_T_camXI, __pb(bbox_camXI_corners)))
-    # bbox_pix_corners = torch.clamp(bbox_pix_corners,0,63).long()
-
-    extrinsics_list = []
-    rgb_list = []
-    label_list = []
-    for b in range(B):
-        for n in range(N):
-            if score[b,n] == 1:
-                rgb = x_data[b:b+1,0]
-                _,_,He, Wi = rgb.shape
-                # st()
-                objcat = object_category[n][b]
-                label_list.append(objcat)
-                bbox = bbox_pix_corners[b,n].long()
-                # st()
-                bbox[:,0] = torch.clamp(bbox[:,0], 0, Wi-1)
-                bbox[:,1] = torch.clamp(bbox[:,1], 0, He-1)
-
-                xmin, xmax = torch.min(bbox[:,0]).item(), torch.max(bbox[:,0]).item()
-                ymin, ymax = torch.min(bbox[:,1]).item(), torch.max(bbox[:,1]).item()
-                
-                # st()
-                rgb_masked = rgb.clone()
-                rgb_masked[:,:,ymin:ymax, xmin:xmax] = 0
-                
-                cropped_rgb = F.interpolate(rgb[:, :, ymin:ymax, xmin:xmax], (64,64))
-                rgb_vis = torch.cat([rgb, rgb_masked], dim=-1)
-
-                # writer.add_image("Cropped_rgb/RGB_RGBMasked", rgb_vis[0])
-                # writer.add_image("Cropped_rgb/cropped", cropped_rgb[0])
-                # writer.add_text("Cropped_rgb/cropped", objcat)
-                rgb_list.append(cropped_rgb[0])
-                extrinsics_list.append(v_data[b])
-    # st()
-    rgb_list_vis = torch.cat(rgb_list, dim=-1)
-    concat_text = "__".join(label_list)
-    writer.add_image("Cropped_rgb/RGB_Cropped", rgb_list_vis)
-    writer.add_text("Cropped_rgb/RGB_Cropped", concat_text)
-
-    x_data_ = torch.stack(rgb_list, dim=0)
-    v_data_ = torch.stack(extrinsics_list, dim=0)
-    return x_data_.unsqueeze(1), v_data_, label_list
-
-    # gt_boxesXI_theta = transform_corners_to_boxes(gt_boxesXI_corners)
-    # gt_boxesR_end = nlu.get_ends_of_corner(gt_boxesR_corners)
-    # camXI_T_origin = camXs_T_origin[:, view_idx]
-    # S = camXs_T_origin.shape[1]
-    # N = gt_boxes_origin_corners.shape[1]
-    # gt_boxes_origin_corners_ = gt_boxes_origin_corners.unsqueeze(1).repeat(1,S,1,1,1) # B, S, N, 8, 3
-    # camXs_T_origin_ = camXs_T_origin.unsqueeze(2).repeat(1,1,N,1,1) # # B, S, N, 4, 4
-    # _,_,_,num_pts,xyz = gt_boxes_origin_corners_.shape
-    # _,_,_,dim1,dim2 = camXs_T_origin_.shape
-    # gt_boxes_origin_corners_ = gt_boxes_origin_corners_.reshape(-1, num_pts, xyz)
-    # camXs_T_origin_ = camXs_T_origin_.reshape(-1, dim1, dim2)
+    bbox2d = metadata['bbox2d']
+    ymin, xmin, ymax, xmax = bbox2d[0]
+    if ymax-ymin < 10 or xmax-xmin < 10:
+        print("Invalid data. Ignoring")
+        return None
     
-    # gt_boxesR_corners_ = apply_4x4(camXs_T_origin_, gt_boxes_origin_corners_)
-    # gt_boxesR_theta = transform_corners_to_boxes(gt_boxesR_corners_.reshape(-1, N, 8, 3))
-    # gt_boxesR_end = get_ends_of_corner(gt_boxesR_corners)
-    # return None
+    x_data_cropped = F.interpolate(x_data[:, 0, :, ymin:ymax, xmin:xmax], (64,64)).unsqueeze(1)
+    
+    writer.add_image("Cropped_rgb/RGB_Cropped", x_data_cropped[0,0])
+
+    return x_data_cropped
 
 def is_dicts_filled(content, style, few_shot_size):
     if len(list(content.keys())) < 3:

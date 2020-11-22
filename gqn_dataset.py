@@ -116,7 +116,7 @@ class GQNDataset_pdisco(Dataset):
         # img_save = images.permute(0,2,3,1).cpu().numpy()
         # print("image size 2: ", img_save.shape)
         # plt.imsave("/home/shamitl/tmp/gqn_rgb.jpg", img_save[0])
-
+        _, _, Horig, Worig = images.shape
         if not self.few_shot:
             images = F.interpolate(images, self.target_res)
 
@@ -136,6 +136,8 @@ class GQNDataset_pdisco(Dataset):
         origin_T_camXs_raw = data['origin_T_camXs_raw']
         camR_T_origin_raw = np.tile(np.expand_dims(np.eye(4), axis=0), (origin_T_camXs_raw.shape[0], 1, 1))
         
+        sel_view, instid, semid, bbox2d = parse_replica_viewseg_data(data, Horig, Worig)
+        instid = int(instid[0])
         # Uncomment this part after fixing.
         '''
         bbox_origin = data['bbox_origin']
@@ -160,8 +162,7 @@ class GQNDataset_pdisco(Dataset):
         object_category = np.pad(object_category,[[0,self.N-num_boxes]],lambda x,y,z,m: "0")
         metadata = {"object_category":list(object_category), "bbox_origin":torch.tensor(bbox_origin).cuda(), "score":torch.tensor(score.astype(np.float32)).cuda(), "pix_T_cams_raw":torch.tensor(pix_T_cams_raw).cuda(), "camR_T_origin_raw":torch.tensor(camR_T_origin_raw).cuda(), "origin_T_camXs_raw":torch.tensor(origin_T_camXs_raw).cuda()}
         '''
-        
-        metadata = {}
+        metadata = {"selected_view": torch.tensor(sel_view), "instid": torch.tensor(instid), "bbox2d": bbox2d[0]}
         # metadata = {"bbox_origin":torch.tensor(bbox_origin), "score":torch.tensor(score.astype(np.float32)), "pix_T_cams_raw":torch.tensor(pix_T_cams_raw), "camR_T_origin_raw":torch.tensor(camR_T_origin_raw), "origin_T_camXs_raw":torch.tensor(origin_T_camXs_raw)}
         return images, viewpoints, metadata
 
@@ -198,7 +199,7 @@ def sample_batch(x_data, v_data, D, M=None, seed=None):
     
     return x, v, x_q, v_q, context_idx, query_idx
 
-def parse_replica_viewseg_data(d):
+def parse_replica_viewseg_data(d, Horig, Worig):
     numviews = len(d['object_info_s_list'])
     while True:
         random_view = np.random.randint(numviews)
@@ -208,6 +209,7 @@ def parse_replica_viewseg_data(d):
     instanceid_list = []
     semanticid_list = []
     bbox_list = []
+    bbox2d_list = []
     semantic_map_list = []
     for key in object_info.keys():
         # semantic_map = object_info[key][5].astype(np.float32)
@@ -217,17 +219,19 @@ def parse_replica_viewseg_data(d):
         bbox = object_info[key][3]
         bbox = bbox.reshape(1,1,2,3)
         bbox_list.append(torch.tensor(bbox))
+        bbox2d_list.append(torch.tensor(object_info[key][4]))
+
 
     # we will use only 1 object for object centric stuff
     obj_idx = np.random.randint(len(instanceid_list))
-    selected_instanceid = int(instanceid_list[obj_idx])
-    for i in range(numviews):
-        object_info = d['object_info_s_list'][i]
-        if selected_instanceid in object_info:
-            smap = object_info[selected_instanceid][5].astype(np.float32)
-        else:
-            smap = np.zeros((hyp.H, hyp.W))
-        semantic_map_list.append(smap)
+    # selected_instanceid = int(instanceid_list[obj_idx])
+    # for i in range(numviews):
+    #     object_info = d['object_info_s_list'][i]
+    #     if selected_instanceid in object_info:
+    #         smap = object_info[selected_instanceid][5].astype(np.float32)
+    #     else:
+    #         smap = np.zeros((Horig, Worig))
+    #     semantic_map_list.append(smap)
         
-    semantic_map = np.stack(semantic_map_list)
-    return [instanceid_list[obj_idx]], [semanticid_list[obj_idx]], [bbox_list[obj_idx]], semantic_map.astype(np.float32)
+    # semantic_map = np.stack(semantic_map_list)
+    return random_view, [instanceid_list[obj_idx]], [semanticid_list[obj_idx]], [bbox2d_list[obj_idx]]
