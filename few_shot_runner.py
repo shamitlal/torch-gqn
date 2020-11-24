@@ -44,7 +44,8 @@ class few_shot_runner():
         # st()
         if self.num_evaluations == 0:
             self.compile_info()
-        
+            self.num_evaluations = 1
+            
         if key not in self.dict.keys():
             return 
 
@@ -63,7 +64,7 @@ class few_shot_runner():
         print(f"Accuracy for {self.name}: ", self.correct/self.total)
         self.summ_writer.add_scalar(f"{self.name}_fewshot", self.correct/self.total, stepnum)
 
-        self.num_evaluations += 1
+        
         if self.num_evaluations >= self.max_evaluations:
             self.reset()
 

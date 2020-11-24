@@ -144,7 +144,7 @@ if __name__ == '__main__':
         few_shot_runner_shape = few_shot_runner("Munit_shape", args.few_shot_size, num_shapes)
         # model.load_state_dict(torch.load("/home/shamitl/projects/torch-gqn/logs/GQN/models/model-40000.pt"))
     
-    # model.load_state_dict(torch.load("/home/shamitl/projects/torch-gqn/logs/GQN/models/run_clevr_singleobj_large/model-14000.pt"))
+    model.load_state_dict(torch.load("/home/shamitl/projects/torch-gqn/logs/GQN/models/replica_1/model-36000.pt"))
     # model.load_state_dict(torch.load("/home/shamitl/projects/torch-gqn/logs/GQN/models/model-60000.pt"))
 
     optimizer = torch.optim.Adam(model.parameters(), lr=5e-4, betas=(0.9, 0.999), eps=1e-08)
